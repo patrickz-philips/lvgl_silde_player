@@ -37,6 +37,8 @@ typedef struct {
 esp_err_t slide_player_ui_init(const slide_player_model_t * model);
 bool slide_player_post_load_result(const slide_player_load_result_t * result);
 bool slide_player_show_next(void);
+bool slide_player_show_previous(void);
+bool slide_player_show_slide(uint32_t slide_number);
 
 #ifdef __cplusplus
 } /*extern "C"*/
