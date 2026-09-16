@@ -26,7 +26,6 @@ static QueueHandle_t s_result_queue;
 static lv_timer_t * s_result_timer;
 static lv_obj_t * s_slide_frame;
 static lv_obj_t * s_slide_media;
-static lv_obj_t * s_slide_index_label;
 static uint32_t s_slide_index;
 static uint32_t s_target_slide_index;
 static uint32_t s_latest_request_id;
@@ -95,18 +94,6 @@ static const char * gesture_direction_name(lv_dir_t direction)
         default:
             return "UNKNOWN";
     }
-}
-
-static void update_slide_label(uint32_t slide_index)
-{
-    if (s_slide_index_label == NULL) {
-        return;
-    }
-
-    lv_label_set_text_fmt(s_slide_index_label, "%u/%u",
-                          (unsigned int)(slide_index + 1U),
-                          (unsigned int)s_model.slide_count);
-    lv_obj_align(s_slide_index_label, LV_ALIGN_BOTTOM_MID, 0, -6);
 }
 
 static void on_display_refresh_ready(lv_event_t * event)
@@ -200,7 +187,7 @@ static void apply_load_result(const slide_player_load_result_t * result)
     }
     lv_obj_center(s_slide_media);
     s_slide_index = result->slide_index;
-    update_slide_label(s_slide_index);
+    s_target_slide_index = result->slide_index;
 }
 
 static void result_timer_cb(lv_timer_t * timer)
@@ -355,16 +342,6 @@ esp_err_t slide_player_ui_init(const slide_player_model_t * model)
         return ESP_ERR_NO_MEM;
     }
     lv_obj_center(s_slide_media);
-
-    s_slide_index_label = lv_label_create(screen);
-    lv_obj_set_style_text_color(s_slide_index_label, lv_color_hex(0xE0E0E0), 0);
-    lv_obj_set_style_bg_color(s_slide_index_label, lv_color_hex(0x282828), 0);
-    lv_obj_set_style_bg_opa(s_slide_index_label, LV_OPA_70, 0);
-    lv_obj_set_style_pad_hor(s_slide_index_label, 8, 0);
-    lv_obj_set_style_pad_ver(s_slide_index_label, 2, 0);
-    lv_obj_set_style_radius(s_slide_index_label, 8, 0);
-    lv_obj_add_flag(s_slide_index_label, LV_OBJ_FLAG_GESTURE_BUBBLE);
-    update_slide_label(0U);
 
     if (!request_slide(0U, "initial")) {
         return ESP_FAIL;
