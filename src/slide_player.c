@@ -228,6 +228,15 @@ static bool request_slide(uint32_t slide_index, const char * reason)
     return true;
 }
 
+bool slide_player_show_next(void)
+{
+    if (s_model.slide_count == 0U) {
+        return false;
+    }
+
+    return request_slide((s_target_slide_index + 1U) % s_model.slide_count, "button");
+}
+
 static void on_slide_gesture(lv_event_t * event)
 {
     if (lv_event_get_code(event) != LV_EVENT_GESTURE) {
