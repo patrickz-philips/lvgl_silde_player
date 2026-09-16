@@ -7,6 +7,7 @@
 
 #include <stddef.h>
 #include <string.h>
+#include <strings.h>
 
 #include "esp_heap_caps.h"
 #include "esp_log.h"
@@ -23,7 +24,8 @@ static const uint32_t RESULT_TIMER_PERIOD_MS = 15U;
 static slide_player_model_t s_model;
 static QueueHandle_t s_result_queue;
 static lv_timer_t * s_result_timer;
-static lv_obj_t * s_slide_image;
+static lv_obj_t * s_slide_frame;
+static lv_obj_t * s_slide_media;
 static lv_obj_t * s_slide_index_label;
 static uint32_t s_slide_index;
 static uint32_t s_target_slide_index;
@@ -41,6 +43,43 @@ static uint32_t s_display_done_sd_bytes;
 static uint32_t s_display_done_sd_speed_kib_s;
 static size_t s_display_free_before;
 static size_t s_display_largest_before;
+
+typedef enum {
+    SLIDE_MEDIA_NONE,
+    SLIDE_MEDIA_IMAGE,
+    SLIDE_MEDIA_GIF,
+} slide_media_type_t;
+
+static slide_media_type_t s_slide_media_type;
+
+static bool is_gif_path(const char * path)
+{
+    const char * extension = strrchr(path, '.');
+    return extension != NULL && strcasecmp(extension, ".gif") == 0;
+}
+
+static bool create_slide_media(slide_media_type_t media_type)
+{
+    if (s_slide_media != NULL && s_slide_media_type == media_type) {
+        return true;
+    }
+
+    if (s_slide_media != NULL) {
+        lv_obj_delete(s_slide_media);
+    }
+
+    s_slide_media = media_type == SLIDE_MEDIA_GIF
+                        ? lv_gif_create(s_slide_frame)
+                        : lv_image_create(s_slide_frame);
+    if (s_slide_media == NULL) {
+        s_slide_media_type = SLIDE_MEDIA_NONE;
+        return false;
+    }
+
+    s_slide_media_type = media_type;
+    lv_obj_add_flag(s_slide_media, LV_OBJ_FLAG_GESTURE_BUBBLE);
+    return true;
+}
 
 static const char * gesture_direction_name(lv_dir_t direction)
 {
@@ -118,11 +157,21 @@ static void apply_load_result(const slide_player_load_result_t * result)
         return;
     }
 
-    if (s_slide_image == NULL) {
+    if (s_slide_frame == NULL) {
         return;
     }
 
     lv_snprintf(s_image_path, sizeof(s_image_path), "%s", result->image_path);
+    const slide_media_type_t media_type = is_gif_path(s_image_path)
+                                              ? SLIDE_MEDIA_GIF
+                                              : SLIDE_MEDIA_IMAGE;
+    if (!create_slide_media(media_type)) {
+        ESP_LOGE(TAG, "[%u] Failed to create slide media widget",
+                 (unsigned int)result->request_id);
+        s_target_slide_index = s_slide_index;
+        return;
+    }
+
     if (s_display_done_pending) {
         ESP_LOGW(TAG, "[%u] Replacing pending display measurement with request %u",
                  (unsigned int)s_display_done_request_id,
@@ -144,8 +193,12 @@ static void apply_load_result(const slide_player_load_result_t * result)
              (unsigned int)(result->slide_index + 1U),
              s_image_path);
 
-    lv_image_set_src(s_slide_image, s_image_path);
-    lv_obj_center(s_slide_image);
+    if (media_type == SLIDE_MEDIA_GIF) {
+        lv_gif_set_src(s_slide_media, s_image_path);
+    } else {
+        lv_image_set_src(s_slide_media, s_image_path);
+    }
+    lv_obj_center(s_slide_media);
     s_slide_index = result->slide_index;
     update_slide_label(s_slide_index);
 }
@@ -286,9 +339,13 @@ esp_err_t slide_player_ui_init(const slide_player_model_t * model)
 
     lv_obj_add_event_cb(screen, on_slide_gesture, LV_EVENT_GESTURE, NULL);
 
-    s_slide_image = lv_image_create(frame);
-    lv_obj_add_flag(s_slide_image, LV_OBJ_FLAG_GESTURE_BUBBLE);
-    lv_obj_center(s_slide_image);
+    s_slide_frame = frame;
+    s_slide_media = NULL;
+    s_slide_media_type = SLIDE_MEDIA_NONE;
+    if (!create_slide_media(SLIDE_MEDIA_IMAGE)) {
+        return ESP_ERR_NO_MEM;
+    }
+    lv_obj_center(s_slide_media);
 
     s_slide_index_label = lv_label_create(screen);
     lv_obj_set_style_text_color(s_slide_index_label, lv_color_hex(0xE0E0E0), 0);

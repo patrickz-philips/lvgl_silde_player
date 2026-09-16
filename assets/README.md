@@ -1,7 +1,8 @@
 # Slide Assets
 
 The slide player does not compile image assets into firmware. At runtime it
-loads `/sdcard/1.png` through `/sdcard/32.png` with `esp_lv_decoder`.
+loads numbered PNG or animated GIF files from `/sdcard`. For each number from 1
+through 32, `<number>.png` takes precedence over `<number>.gif`.
 
 `convert_image.py` is an optional development utility for converting arbitrary
 PNG files to LVGL 9 ARGB8888 C arrays. Generated C files are not included by the
