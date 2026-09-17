@@ -39,6 +39,7 @@ bool slide_player_post_load_result(const slide_player_load_result_t * result);
 bool slide_player_show_next(void);
 bool slide_player_show_previous(void);
 bool slide_player_show_slide(uint32_t slide_number);
+bool slide_player_reload(void);
 
 #ifdef __cplusplus
 } /*extern "C"*/

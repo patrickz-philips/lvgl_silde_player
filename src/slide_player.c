@@ -16,6 +16,7 @@
 #include "freertos/queue.h"
 #include "freertos/task.h"
 #include "lvgl.h"
+#include "lvgl_private.h"
 
 static const char * TAG = "slide_player_ui";
 static const uint32_t GESTURE_DEBOUNCE_US = 180000U;
@@ -243,6 +244,18 @@ bool slide_player_show_slide(uint32_t slide_number)
     }
 
     return request_slide(slide_number - 1U, "number");
+}
+
+bool slide_player_reload(void)
+{
+    if (s_model.slide_count == 0U) {
+        return false;
+    }
+
+    if (s_image_path[0] != '\0') {
+        lv_image_cache_drop(s_image_path);
+    }
+    return request_slide(s_target_slide_index, "reload");
 }
 
 static void on_slide_gesture(lv_event_t * event)
