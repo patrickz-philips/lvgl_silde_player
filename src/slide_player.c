@@ -32,6 +32,7 @@ static uint32_t s_target_slide_index;
 static uint32_t s_latest_request_id;
 static int64_t s_last_switch_us;
 static char s_image_path[SLIDE_PLAYER_IMAGE_PATH_MAX_LEN];
+static bool s_image_path_is_animation_frame;
 
 static lv_display_t * s_display_with_refresh_callback;
 static bool s_display_done_pending;
@@ -149,7 +150,12 @@ static void apply_load_result(const slide_player_load_result_t * result)
         return;
     }
 
+    if ((s_image_path_is_animation_frame || result->animation_frame) && s_image_path[0] != '\0') {
+        lv_image_cache_drop(s_image_path);
+    }
     lv_snprintf(s_image_path, sizeof(s_image_path), "%s", result->image_path);
+    const bool first_animation_frame = result->animation_frame && !s_image_path_is_animation_frame;
+    s_image_path_is_animation_frame = result->animation_frame;
     const slide_media_type_t media_type = is_gif_path(s_image_path)
                                               ? SLIDE_MEDIA_GIF
                                               : SLIDE_MEDIA_IMAGE;
@@ -160,26 +166,28 @@ static void apply_load_result(const slide_player_load_result_t * result)
         return;
     }
 
-    if (s_display_done_pending) {
+    if (s_display_done_pending && !result->animation_frame) {
         ESP_LOGW(TAG, "[%u] Replacing pending display measurement with request %u",
                  (unsigned int)s_display_done_request_id,
                  (unsigned int)result->request_id);
     }
 
-    s_display_submit_start_us = esp_timer_get_time();
-    s_display_free_before = heap_caps_get_free_size(MALLOC_CAP_8BIT);
-    s_display_largest_before = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
-    s_display_done_request_id = result->request_id;
-    s_display_done_slide_index = result->slide_index;
-    s_display_done_sd_cost_us = result->elapsed_us;
-    s_display_done_sd_bytes = result->bytes_read;
-    s_display_done_sd_speed_kib_s = result->speed_kib_s;
-    s_display_done_pending = true;
+    s_display_done_pending = !result->animation_frame || first_animation_frame;
+    if (s_display_done_pending) {
+        s_display_submit_start_us = esp_timer_get_time();
+        s_display_free_before = heap_caps_get_free_size(MALLOC_CAP_8BIT);
+        s_display_largest_before = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
+        s_display_done_request_id = result->request_id;
+        s_display_done_slide_index = result->slide_index;
+        s_display_done_sd_cost_us = result->elapsed_us;
+        s_display_done_sd_bytes = result->bytes_read;
+        s_display_done_sd_speed_kib_s = result->speed_kib_s;
 
-    ESP_LOGI(TAG, "[%u] Display submit slide=%u path=%s",
-             (unsigned int)result->request_id,
-             (unsigned int)(result->slide_index + 1U),
-             s_image_path);
+        ESP_LOGI(TAG, "[%u] Display submit slide=%u path=%s%s",
+                 (unsigned int)result->request_id,
+                 (unsigned int)(result->slide_index + 1U),
+             s_image_path, result->animation_frame ? " (folder frame)" : "");
+    }
 
     if (media_type == SLIDE_MEDIA_GIF) {
         lv_gif_set_src(s_slide_media, s_image_path);
@@ -336,6 +344,7 @@ esp_err_t slide_player_ui_init(const slide_player_model_t * model)
     s_target_slide_index = 0U;
     s_latest_request_id = 0U;
     s_last_switch_us = 0;
+    s_image_path_is_animation_frame = false;
     s_display_done_pending = false;
 
     lv_obj_t * screen = lv_screen_active();

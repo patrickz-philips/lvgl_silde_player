@@ -28,6 +28,7 @@ typedef struct {
 	uint32_t slide_index;
 	char image_path[SLIDE_PLAYER_IMAGE_PATH_MAX_LEN];
 	bool success;
+	bool animation_frame;
 	int error_no;
 	uint32_t bytes_read;
 	uint32_t speed_kib_s;
